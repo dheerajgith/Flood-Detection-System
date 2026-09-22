@@ -1,0 +1,41 @@
+﻿# ─────────────────────────────────────────────────────────────────────────────
+# NEERKAAVAL .gitignore
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Secrets & credentials (NEVER commit) ─────────────────────────────────────
+.env
+*.env
+.streamlit/secrets.toml
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ── Test & coverage cache ──────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── macOS & Windows clutter ───────────────────────────────────────────────────
+.DS_Store
+desktop.ini
+Thumbs.db
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ── Distribution & build artifacts ────────────────────────────────────────────
+dist/
+build/
+*.egg-info/

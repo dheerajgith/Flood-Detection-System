@@ -1,0 +1,231 @@
+[TITLE]
+;;Project Title/Notes
+NEERKAAVAL - Velachery Catchment Digital Twin
+Chennai Urban Flood Mitigation Study
+Design Storm: 100-yr 6-hr event, peak at 02:00 AM
+
+[OPTIONS]
+;;Option             Value
+FLOW_UNITS           CMS
+INFILTRATION         HORTON
+FLOW_ROUTING         DYNWAVE
+LINK_OFFSETS         DEPTH
+MIN_SLOPE            0.001
+ALLOW_PONDING        NO
+SKIP_STEADY_STATE    NO
+
+START_DATE           01/01/2024
+START_TIME           00:00:00
+REPORT_START_DATE    01/01/2024
+REPORT_START_TIME    00:00:00
+END_DATE             01/01/2024
+END_TIME             06:00:00
+SWEEP_START          01/01
+SWEEP_END            12/31
+DRY_DAYS             2
+REPORT_STEP          00:05:00
+WET_STEP             00:01:00
+DRY_STEP             01:00:00
+ROUTING_STEP         0:00:30
+RULE_STEP            0:00:15
+
+INERTIAL_DAMPING     PARTIAL
+NORMAL_FLOW_LIMITED  BOTH
+FORCE_MAIN_EQUATION  H-W
+VARIABLE_STEP        0.75
+LENGTHENING_STEP     0
+MIN_SURFAREA         12.566
+MAX_TRIALS           8
+HEAD_TOLERANCE       0.0015
+SYS_FLOW_TOL         5
+LAT_FLOW_TOL         5
+MINIMUM_STEP         0.5
+THREADS              1
+
+[EVAPORATION]
+;;Data Source    Parameters
+;;-------------- ----------------
+CONSTANT         0.0
+DRY_ONLY         NO
+
+[RAINGAGES]
+;;Name           Format    Interval SCF      Source
+;;-------------- --------- ------ ------ ----------
+RG_Chennai       INTENSITY 0:05     1.0      TIMESERIES TS_100yr_Storm
+
+[SUBCATCHMENTS]
+;;Name           Rain Gage        Outlet           Area     %Imperv  Width    %Slope   CurbLen  SnowPack
+;;-------------- ---------------- ---------------- -------- -------- -------- -------- -------- ----------------
+Velachery_Urban  RG_Chennai       Velachery_Main   8.5      72       1200     1.2      0
+Mudichur_Sub     RG_Chennai       Pallikaranai     5.2      55       900      0.8      0
+Pallikaranai_Wet RG_Chennai       Pallikaranai     12.0     15       1800     0.3      0
+
+[SUBAREAS]
+;;Subcatchment   N-Imperv   N-Perv     S-Imperv   S-Perv     PctZero    RouteTo    PctRouted
+;;-------------- ---------- ---------- ---------- ---------- ---------- ---------- ---------
+Velachery_Urban  0.015      0.24       2.5        5.0        35         OUTLET
+Mudichur_Sub     0.015      0.20       2.0        5.0        30         OUTLET
+Pallikaranai_Wet 0.012      0.30       1.0        8.0        60         OUTLET
+
+[INFILTRATION]
+;;Subcatchment   MaxRate    MinRate    Decay      DryTime    MaxInfil
+;;-------------- ---------- ---------- ---------- ---------- ----------
+Velachery_Urban  75.0       3.0        4.0        7          0
+Mudichur_Sub     60.0       4.0        4.0        7          0
+Pallikaranai_Wet 40.0       6.0        3.5        7          0
+
+[JUNCTIONS]
+;;Name           Elevation  MaxDepth   InitDepth  SurDepth   Aponded
+;;-------------- ---------- ---------- ---------- ---------- ----------
+Velachery_Main   6.5        3.5        0.1        0          500
+Pallikaranai     3.2        4.0        0.05       0          2000
+Outfall_Gate     1.5        2.5        0.0        0          100
+
+[OUTFALLS]
+;;Name           Elevation  Type       Stage Data       Gated    Route To
+;;-------------- ---------- ---------- ---------------- -------- ----------------
+Buckingham_Canal 0.5        TIDAL      TS_Tidal_Curve   NO
+
+[CONDUITS]
+;;Name           From Node        To Node          Length     Roughness  InOffset   OutOffset  InitFlow   MaxFlow
+;;-------------- ---------------- ---------------- ---------- ---------- ---------- ---------- ---------- ----------
+C_Velachery_Main Velachery_Main   Pallikaranai     2800       0.013      0          0          0          0
+C_Outfall        Pallikaranai     Outfall_Gate     1200       0.015      0          0          0          0
+
+[ORIFICES]
+;;Name           From Node        To Node          Type         Offset     Qcoeff     Gated    CloseTime
+;;-------------- ---------------- ---------------- ------------ ---------- ---------- -------- ----------
+Gate_01          Outfall_Gate     Buckingham_Canal SIDE         0.0        0.65       YES      0
+
+[XSECTIONS]
+;;Link           Shape        Geom1            Geom2      Geom3      Geom4      Barrels    Culvert
+;;-------------- ------------ ---------------- ---------- ---------- ---------- ---------- ----------
+C_Velachery_Main CIRCULAR     1.2              0          0          0          2
+C_Outfall        CIRCULAR     1.0              0          0          0          1
+Gate_01          RECT_CLOSED  1.5              1.2        0          0
+
+[TRANSECTS]
+;;
+
+[LOSSES]
+;;Link           Kentry     Kexit      Kavg       Flap Gate  Seepage
+;;-------------- ---------- ---------- ---------- ---------- ----------
+C_Velachery_Main 0.5        0.3        0          NO         0.001
+C_Outfall        0.3        0.2        0          NO         0.001
+
+[TIMESERIES]
+;;Name           Date       Time       Value
+;;-------------- ---------- ---------- ----------
+;Chennai 100-yr design storm: 6-hr event, peak intensity ~120 mm/hr at 2AM
+;Pre-storm buildup
+TS_100yr_Storm   01/01/2024 00:00      2.5
+TS_100yr_Storm   01/01/2024 00:05      3.0
+TS_100yr_Storm   01/01/2024 00:10      3.5
+TS_100yr_Storm   01/01/2024 00:15      4.0
+TS_100yr_Storm   01/01/2024 00:20      5.0
+TS_100yr_Storm   01/01/2024 00:25      6.5
+TS_100yr_Storm   01/01/2024 00:30      8.0
+TS_100yr_Storm   01/01/2024 00:35      10.0
+TS_100yr_Storm   01/01/2024 00:40      12.5
+TS_100yr_Storm   01/01/2024 00:45      16.0
+TS_100yr_Storm   01/01/2024 00:50      22.0
+TS_100yr_Storm   01/01/2024 00:55      30.0
+;Rising limb toward peak
+TS_100yr_Storm   01/01/2024 01:00      40.0
+TS_100yr_Storm   01/01/2024 01:05      52.0
+TS_100yr_Storm   01/01/2024 01:10      65.0
+TS_100yr_Storm   01/01/2024 01:15      78.0
+TS_100yr_Storm   01/01/2024 01:20      90.0
+TS_100yr_Storm   01/01/2024 01:25      100.0
+TS_100yr_Storm   01/01/2024 01:30      108.0
+TS_100yr_Storm   01/01/2024 01:35      113.0
+TS_100yr_Storm   01/01/2024 01:40      116.0
+TS_100yr_Storm   01/01/2024 01:45      119.0
+TS_100yr_Storm   01/01/2024 01:50      121.0
+TS_100yr_Storm   01/01/2024 01:55      122.0
+;Peak intensity window 2 AM
+TS_100yr_Storm   01/01/2024 02:00      122.5
+TS_100yr_Storm   01/01/2024 02:05      123.0
+TS_100yr_Storm   01/01/2024 02:10      122.0
+TS_100yr_Storm   01/01/2024 02:15      120.0
+TS_100yr_Storm   01/01/2024 02:20      117.0
+TS_100yr_Storm   01/01/2024 02:25      112.0
+;Falling limb
+TS_100yr_Storm   01/01/2024 02:30      105.0
+TS_100yr_Storm   01/01/2024 02:35      96.0
+TS_100yr_Storm   01/01/2024 02:40      86.0
+TS_100yr_Storm   01/01/2024 02:45      74.0
+TS_100yr_Storm   01/01/2024 02:50      62.0
+TS_100yr_Storm   01/01/2024 02:55      50.0
+TS_100yr_Storm   01/01/2024 03:00      40.0
+TS_100yr_Storm   01/01/2024 03:05      32.0
+TS_100yr_Storm   01/01/2024 03:10      25.0
+TS_100yr_Storm   01/01/2024 03:15      19.0
+TS_100yr_Storm   01/01/2024 03:20      14.0
+TS_100yr_Storm   01/01/2024 03:25      10.0
+TS_100yr_Storm   01/01/2024 03:30      7.0
+TS_100yr_Storm   01/01/2024 03:35      5.0
+TS_100yr_Storm   01/01/2024 03:40      3.5
+TS_100yr_Storm   01/01/2024 03:45      2.5
+TS_100yr_Storm   01/01/2024 03:50      2.0
+TS_100yr_Storm   01/01/2024 03:55      1.5
+TS_100yr_Storm   01/01/2024 04:00      1.0
+TS_100yr_Storm   01/01/2024 04:30      0.5
+TS_100yr_Storm   01/01/2024 05:00      0.2
+TS_100yr_Storm   01/01/2024 06:00      0.0
+
+;Tidal boundary condition at Buckingham Canal (low at midnight, rising from 4 AM)
+TS_Tidal_Curve   01/01/2024 00:00      0.2
+TS_Tidal_Curve   01/01/2024 01:00      0.15
+TS_Tidal_Curve   01/01/2024 02:00      0.1
+TS_Tidal_Curve   01/01/2024 03:00      0.12
+TS_Tidal_Curve   01/01/2024 04:00      0.35
+TS_Tidal_Curve   01/01/2024 05:00      0.75
+TS_Tidal_Curve   01/01/2024 06:00      1.2
+
+[REPORT]
+;;Reporting Options
+SUBCATCHMENTS    ALL
+NODES            ALL
+LINKS            ALL
+
+[TAGS]
+
+[MAP]
+DIMENSIONS 80.18 12.90 80.27 13.02
+Units      None
+
+[COORDINATES]
+;;Node           X-Coord            Y-Coord
+;;-------------- ------------------ ------------------
+Velachery_Main   80.2200            12.9800
+Pallikaranai     80.2100            12.9300
+Outfall_Gate     80.2500            12.9500
+Buckingham_Canal 80.2650            12.9550
+
+[VERTICES]
+;;Link           X-Coord            Y-Coord
+;;-------------- ------------------ ------------------
+C_Velachery_Main 80.2150            12.9600
+C_Outfall        80.2300            12.9400
+
+[Polygons]
+;;Subcatchment   X-Coord            Y-Coord
+;;-------------- ------------------ ------------------
+Velachery_Urban  80.1900            12.9900
+Velachery_Urban  80.2400            12.9900
+Velachery_Urban  80.2400            12.9600
+Velachery_Urban  80.1900            12.9600
+Mudichur_Sub     80.1800            12.9400
+Mudichur_Sub     80.2200            12.9400
+Mudichur_Sub     80.2200            12.9100
+Mudichur_Sub     80.1800            12.9100
+Pallikaranai_Wet 80.1900            12.9500
+Pallikaranai_Wet 80.2400            12.9500
+Pallikaranai_Wet 80.2400            12.9100
+Pallikaranai_Wet 80.1900            12.9100
+
+[SYMBOLS]
+;;Gage           X-Coord            Y-Coord
+;;-------------- ------------------ ------------------
+RG_Chennai       80.2100            13.0000
