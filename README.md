@@ -18,3 +18,4 @@ Hydraulic Principles: EPA SWMM, 1D Saint-Venant Equations (Dynamic Wave Routing)
 Telemetry & Dispatch: requests (HTTP Webhooks / ntfy.sh), Python SMTP, Telegram Bot API
 
 Data Processing: Python, NumPy, Pandas
+Automated urban flood telemetry & decision-support dashboard for Velachery, Chennai. Uses EPA SWMM hydrodynamic routing to simulate 100-year storm surges and evaluate motorized sluice gate control, featuring live Folium mapping and zero-latency push alerts via ntfy.sh.
