@@ -26,6 +26,26 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Try to load local .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+def _get_setting(key: str, default: str = "") -> str:
+    """Read configuration from environment variable or Streamlit secrets."""
+    val = os.environ.get(key, "").strip()
+    if val:
+        return val
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
+    return default
+
 # ── ntfy.sh topic (override with NTFY_TOPIC env var) ────────────────────────
 _NTFY_DEFAULT_TOPIC  = "neerkaaval_alerts_demo"
 _NTFY_DEFAULT_SERVER = "https://ntfy.sh"
@@ -57,8 +77,8 @@ def send_telegram(
     bot_token: str = "", chat_id: str = "",
 ) -> Dict[str, Any]:
     """Send flood alert via Telegram Bot API."""
-    token = bot_token or os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    cid   = chat_id  or os.environ.get("TELEGRAM_CHAT_ID",  "")
+    token = bot_token or _get_setting("TELEGRAM_BOT_TOKEN")
+    cid   = chat_id  or _get_setting("TELEGRAM_CHAT_ID")
 
     if not token or not cid:
         logger.info("Telegram: demo mode (no token/chat_id configured)")
@@ -84,16 +104,16 @@ def send_email(
     node: str, peak_depth: float, lat: float, lon: float,
 ) -> Dict[str, Any]:
     """Send flood alert via SMTP email."""
-    host  = os.environ.get("SMTP_HOST",   "smtp.gmail.com")
-    port  = int(os.environ.get("SMTP_PORT", "587"))
-    user  = os.environ.get("SMTP_USER",   "")
-    pwd   = os.environ.get("SMTP_PASS",   "")
-    to    = os.environ.get("ALERT_EMAIL", "")
+    host  = _get_setting("SMTP_HOST",   "smtp.gmail.com")
+    port  = int(_get_setting("SMTP_PORT", "587"))
+    user  = _get_setting("SMTP_USER",   "")
+    pwd   = _get_setting("SMTP_PASS",   "")
+    to    = _get_setting("ALERT_EMAIL", "~")
 
     if not all([host, user, pwd, to]):
         logger.info("Email: demo mode (SMTP env vars not configured)")
         return {"channel": "email", "success": True, "demo": True,
-                "message": "Demo mode — set SMTP_HOST, SMTP_USER, SMTP_PASS, ALERT_EMAIL"}
+                "message": "Demo mode set SMTP_HOST, SMTP_USER, SMTP_PASS, ALERT_EMAIL"}
 
     body = _build_message(node, peak_depth, lat, lon)
     msg = MIMEMultipart("alternative")
@@ -134,9 +154,9 @@ def send_push_alert(
       NTFY_SERVER  — override the server (default: https://ntfy.sh)
       NTFY_TOKEN   — bearer token for private/access-controlled topics
     """
-    topic  = os.environ.get("NTFY_TOPIC",  _NTFY_DEFAULT_TOPIC)
-    server = os.environ.get("NTFY_SERVER", _NTFY_DEFAULT_SERVER)
-    token  = os.environ.get("NTFY_TOKEN",  "")
+    topic  = _get_setting("NTFY_TOPIC",  _NTFY_DEFAULT_TOPIC)
+    server = _get_setting("NTFY_SERVER", _NTFY_DEFAULT_SERVER)
+    token  = _get_setting("NTFY_TOKEN",  "")
 
     url = server.rstrip("/") + "/" + topic
 

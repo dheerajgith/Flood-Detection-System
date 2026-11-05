@@ -23,7 +23,13 @@ from streamlit_folium import st_folium
 from twin.runner import run_swmm_simulation
 from sensors.virtual import get_sensor_dataframe
 from control.metrics import compute_metrics, FLOOD_THRESHOLD_M
-from alerts.broadcast import broadcast_all
+from alerts.broadcast import (
+    broadcast_all,
+    send_telegram,
+    send_email,
+    send_push_alert,
+    _get_setting,
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE CONFIG & GLOBAL STYLES
@@ -41,146 +47,117 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-  /* ── Import fonts ── */
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;600;700&display=swap');
+    /* Deep Dark Gradient Background for Main App Area */
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #0A0E17 0%, #1A2035 100%);
+    }
+    
+    /* Hide footer */
+    footer { visibility: hidden; }
 
-  /* ── Root variables ── */
-  :root {
-    --bg-primary:    #0a0e1a;
-    --bg-card:       #111827;
-    --bg-card2:      #1a2236;
-    --accent-blue:   #3b82f6;
-    --accent-cyan:   #06b6d4;
-    --accent-red:    #ef4444;
-    --accent-green:  #22c55e;
-    --accent-orange: #f59e0b;
-    --text-primary:  #f1f5f9;
-    --text-muted:    #94a3b8;
-    --border:        #1e293b;
-    --glow-blue:     0 0 20px rgba(59,130,246,0.3);
-    --glow-red:      0 0 20px rgba(239,68,68,0.3);
-  }
+    /* Make header and toolbar transparent instead of hidden so the expand button survives */
+    header[data-testid="stHeader"] { 
+        background-color: transparent !important; 
+        z-index: 1000 !important;
+    }
+    [data-testid="stToolbar"] {
+        background-color: transparent !important;
+        visibility: visible !important;
+        display: flex !important;
+    }
+    
+    /* Hide only the Deploy button and default Main Menu to keep the UI clean */
+    .stAppDeployButton, 
+    [data-testid="stAppDeployButton"],
+    #MainMenu,
+    [data-testid="stMainMenu"] { 
+        display: none !important; 
+    }
 
-  /* ── Global base ── */
-  html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg-primary) !important;
-    color: var(--text-primary) !important;
-  }
-  .stApp { background-color: var(--bg-primary) !important; }
+    /* Style the Expand (>>) and Collapse (<<) buttons to match the theme and always stay visible */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stExpandSidebarButton"],
+    [data-testid="collapsedControl"],
+    button[data-testid="stSidebarCollapseButton"],
+    button[data-testid="stExpandSidebarButton"],
+    header button {
+        visibility: visible !important;
+        display: inline-flex !important;
+        opacity: 1 !important;
+        color: #87CEEB !important; /* Sky Blue */
+        background-color: rgba(10, 14, 23, 0.85) !important; /* Dark glassy box */
+        border: 1px solid #1E3A8A !important;
+        border-radius: 6px !important;
+        z-index: 999999 !important;
+        cursor: pointer !important;
+    }
+    [data-testid="stSidebarCollapseButton"]:hover,
+    [data-testid="stExpandSidebarButton"]:hover {
+        background-color: rgba(30, 58, 138, 0.7) !important;
+        border-color: #87CEEB !important;
+    }
+    [data-testid="stSidebarCollapseButton"] svg,
+    [data-testid="stExpandSidebarButton"] svg,
+    [data-testid="collapsedControl"] svg {
+        fill: #87CEEB !important;
+        stroke: #87CEEB !important;
+        color: #87CEEB !important;
+    }
 
-  /* ── Map Iframe Smooth Fade-In ── */
-  iframe {
-    background-color: var(--bg-primary) !important;
-    animation: mapFadeIn 0.8s ease-in-out;
-  }
+    /* SKY BLUE Frosted Glass Sidebar */
+    [data-testid="stSidebar"] > div:first-child {
+        background-color: rgba(135, 206, 235, 0.90) !important; /* Sky Blue */
+        backdrop-filter: blur(15px) !important;
+        -webkit-backdrop-filter: blur(15px) !important;
+        border-right: 2px solid #1E3A8A;
+    }
 
-  @keyframes mapFadeIn {
-    0%   { opacity: 0;   }
-    20%  { opacity: 0.9; }
-    100% { opacity: 1;   }
-  }
+    /* STARRY BLUE Text inside the Sidebar */
+    [data-testid="stSidebar"] * {
+        color: #0A1128 !important; /* Deep Starry Blue */
+    }
 
-  /* ── Sidebar ── */
-  [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0d1425 0%, #0a1020 100%) !important;
-    border-right: 1px solid var(--border) !important;
-  }
-  [data-testid="stSidebar"] .stMarkdown h1,
-  [data-testid="stSidebar"] .stMarkdown h2,
-  [data-testid="stSidebar"] .stMarkdown h3 {
-    color: var(--accent-cyan) !important;
-  }
+    /* DARK Toggle/Checkbox inside Sidebar for visibility */
+    [data-testid="stSidebar"] div[data-baseweb="checkbox"] > div {
+        background-color: #0A1128 !important;
+        border: 1px solid #0A1128 !important;
+    }
+    [data-testid="stSidebar"] div[data-baseweb="checkbox"] div[data-testid="stTickBar"] {
+        background-color: #87CEEB !important; /* Sky blue tick inside dark box */
+    }
 
-  /* ── Metric cards ── */
-  [data-testid="metric-container"] {
-    background: var(--bg-card) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 12px !important;
-    padding: 16px 20px !important;
-    box-shadow: var(--glow-blue);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  [data-testid="metric-container"]:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 30px rgba(59,130,246,0.45);
-  }
-  [data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-size: 0.78rem !important; }
-  [data-testid="stMetricValue"] { color: var(--text-primary) !important; font-size: 1.8rem !important; font-weight: 700 !important; }
-  [data-testid="stMetricDelta"] { font-size: 0.82rem !important; }
+    /* DARK BLUE Dividing Lines */
+    hr { 
+        border-bottom: 2px solid #1E3A8A !important; 
+    }
 
-  /* ── Headers ── */
-  h1, h2, h3 { font-family: 'Space Grotesk', sans-serif !important; }
-  h1 { font-size: 2.2rem !important; font-weight: 700 !important;
-       background: linear-gradient(90deg, #06b6d4, #3b82f6);
-       -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  h2 { font-size: 1.35rem !important; color: var(--accent-cyan) !important; }
-  h3 { font-size: 1.1rem !important; color: var(--text-muted) !important; font-weight: 500 !important; }
+    /* Keep Glassmorphism Metric Cards in Main Area */
+    [data-testid="stMetric"] {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
 
-  /* ── Dividers ── */
-  hr { border-color: var(--border) !important; }
-
-  /* ── Status banner ── */
-  .status-banner {
-    background: linear-gradient(135deg, #0f1f3d, #0a1428);
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--accent-blue);
-    border-radius: 8px;
-    padding: 12px 20px;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-  }
-
-  /* ── Alert banners ── */
-  .flood-alert {
-    background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05));
-    border: 1px solid rgba(239,68,68,0.4);
-    border-left: 4px solid var(--accent-red);
-    border-radius: 8px;
-    padding: 14px 20px;
-    animation: pulse-red 2s ease-in-out infinite;
-  }
-  @keyframes pulse-red {
-    0%, 100% { box-shadow: 0 0 10px rgba(239,68,68,0.2); }
-    50%       { box-shadow: 0 0 25px rgba(239,68,68,0.5); }
-  }
-  .safe-banner {
-    background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04));
-    border: 1px solid rgba(34,197,94,0.4);
-    border-left: 4px solid var(--accent-green);
-    border-radius: 8px;
-    padding: 14px 20px;
-  }
-
-  /* ── Section card ── */
-  .section-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-  }
-
-  /* ── Broadcast button labels ── */
-  .broadcast-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-    text-align: center;
-  }
-
-  /* ── Scrollbar ── */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #0a0e1a; }
-  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-
-  /* ── Tooltip / expander ── */
-  [data-testid="stExpander"] {
-    background: var(--bg-card) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 10px !important;
-  }
+    /* Sleek Cyan-to-Blue Gradient Buttons */
+    .stButton > button {
+        background: linear-gradient(90deg, #00E5FF 0%, #0072FF 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px;
+        padding: 10px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -193,6 +170,11 @@ with st.sidebar:
     st.markdown("## 🌊 NEERKAAVAL")
     st.markdown("**Closed-Loop Stormwater Digital Twin**")
     st.markdown("_Velachery–Pallikaranai Catchment, Chennai_")
+    st.divider()
+
+    st.markdown("### 🧭 Navigation")
+    st.page_link("app.py", label="Digital Twin Dashboard (Home)", icon="🌊")
+    st.page_link("pages/1_Tidal_Boundary.py", label="Tidal Boundary Telemetry", icon="📊")
     st.divider()
 
     control_on = st.toggle(
@@ -249,16 +231,16 @@ df_active = df_on if control_on else df_off
 # PAGE HEADER
 # ══════════════════════════════════════════════════════════════════════════════
 
-st.markdown("# 🌊 NEERKAAVAL")
+hcol1, hcol2 = st.columns([3, 1])
+with hcol1:
+    st.markdown("# 🌊 NEERKAAVAL")
+with hcol2:
+    st.page_link("pages/1_Tidal_Boundary.py", label="🌊 Live Tidal Boundary →", icon="📊")
 
 status_color = "#22c55e" if control_on else "#ef4444"
 status_text  = "🟢 ACTIVE CONTROL — Smart gates engaged" if control_on else "🔴 NO CONTROL — Passive drainage (flood risk)"
-st.markdown(
-    f'<div class="status-banner">'
-    f'<span style="color:{status_color};font-weight:600">{status_text}</span>'
-    f' &nbsp;|&nbsp; Design Storm: Chennai 100-yr · Peak 02:00 AM · Duration 6 hr'
-    f'</div>',
-    unsafe_allow_html=True,
+st.info(
+    f"{status_text}  |  Design Storm: Chennai 100-yr · Peak 02:00 AM · Duration 6 hr"
 )
 
 st.divider()
@@ -271,22 +253,16 @@ st.divider()
 peak_active = df_active["Velachery_Main"].max() if "Velachery_Main" in df_active.columns else 0.0
 
 if peak_active > FLOOD_THRESHOLD_M:
-    st.markdown(
-        f'<div class="flood-alert">'
-        f'🚨 <strong>CRITICAL FLOOD ALERT</strong> — Velachery_Main peak depth: '
-        f'<strong>{peak_active:.2f} m</strong> &gt; 1.2 m threshold. '
-        f'Downstream roads inundated. Activate emergency protocols.'
-        f'</div>',
-        unsafe_allow_html=True,
+    st.error(
+        f"🚨 **CRITICAL FLOOD ALERT** — Velachery_Main peak depth: "
+        f"**{peak_active:.2f} m** > 1.2 m threshold. "
+        f"Downstream roads inundated. Activate emergency protocols."
     )
 else:
-    st.markdown(
-        f'<div class="safe-banner">'
-        f'✅ <strong>Within Safe Limits</strong> — Velachery_Main peak held at '
-        f'<strong>{peak_active:.2f} m</strong> (threshold 1.2 m). '
-        f'Smart gate control successfully mitigated flood surge.'
-        f'</div>',
-        unsafe_allow_html=True,
+    st.success(
+        f"✅ **Within Safe Limits** — Velachery_Main peak held at "
+        f"**{peak_active:.2f} m** (threshold 1.2 m). "
+        f"Smart gate control successfully mitigated flood surge."
     )
 
 
@@ -718,11 +694,15 @@ st.markdown("## 📡 Emergency Broadcast System")
 
 peak_for_alert = metrics["peak_depth_off"]   # Alert based on worst-case scenario
 
+ntfy_topic = _get_setting("NTFY_TOPIC", "neerkaaval_alerts_demo")
+ntfy_server = _get_setting("NTFY_SERVER", "https://ntfy.sh").rstrip("/")
+ntfy_url = f"{ntfy_server}/{ntfy_topic}"
+
 col_tg, col_em, col_push = st.columns(3)
 
 def _render_channel_result(result: dict):
     if result.get("demo"):
-        st.info(f"📤 Demo mode — {result.get('message','configure env vars')}", icon="ℹ️")
+        st.info(f"📤 Demo mode — {result.get('message','configure credentials')}", icon="ℹ️")
     elif result.get("success"):
         st.success("✅ Alert dispatched successfully", icon="✅")
     else:
@@ -730,41 +710,75 @@ def _render_channel_result(result: dict):
 
 with col_tg:
     st.markdown("### 📱 Telegram")
-    st.caption("Instant push to engineers' group")
+    st.caption("Instant push to engineers' group via Telegram Bot")
+    tg_configured = bool(_get_setting("TELEGRAM_BOT_TOKEN") and _get_setting("TELEGRAM_CHAT_ID"))
+    if not tg_configured:
+        st.caption("Credentials need a telegram group")
     if st.button("Send Telegram Alert", use_container_width=True, type="primary",
                   key="btn_telegram"):
         with st.spinner("Sending…"):
-            res = broadcast_all(
+            res = send_telegram(
                 node="Velachery_Main", peak_depth=peak_for_alert,
                 lat=12.98, lon=80.22,
-                bot_token=tg_token, chat_id=tg_chat,
             )
-            _render_channel_result(res.get("telegram", {}))
+            _render_channel_result(res)
 
 with col_em:
     st.markdown("### 📧 Email")
-    st.caption("SMTP alert to operations team")
+    st.caption("SMTP alert to operations & disaster management team")
+    em_configured = bool(_get_setting("SMTP_USER") and _get_setting("SMTP_PASS") and _get_setting("ALERT_EMAIL"))
+    if not em_configured:
+        st.caption("⚠️ SMTP not configured (runs in demo mode)")
     if st.button("Send Email Alert", use_container_width=True,
                   key="btn_email"):
         with st.spinner("Sending…"):
-            res = broadcast_all("Velachery_Main", peak_for_alert, 12.98, 80.22)
-            _render_channel_result(res.get("email", {}))
+            res = send_email("Velachery_Main", peak_for_alert, 12.98, 80.22)
+            _render_channel_result(res)
 
 with col_push:
     st.markdown("### 📲 Push Notification")
-    st.caption("ntfy.sh push notification · subscribe to topic set in NTFY_TOPIC env var")
+    st.caption("Live mobile/desktop push via ntfy.sh (No signup needed)")
+    st.markdown(f"🔔 **Channel:** [`{ntfy_topic}`]({ntfy_url}) *(click to open)*")
     if st.button("Send Push Notification", use_container_width=True,
                   key="btn_push"):
         with st.spinner("Sending…"):
-            res = broadcast_all("Velachery_Main", peak_for_alert, 12.98, 80.22)
-            _render_channel_result(res.get("push", {}))
+            res = send_push_alert("Velachery_Main", peak_for_alert, 12.98, 80.22)
+            if res.get("success"):
+                st.success(f"✅ Alert sent to `{ntfy_topic}`! Check [{ntfy_topic}]({ntfy_url})", icon="✅")
+            else:
+                _render_channel_result(res)
 
-st.caption(
-    "Configure TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SMTP_HOST, SMTP_USER, SMTP_PASS, "
-    "ALERT_EMAIL as environment variables to enable real dispatch. "
-    "Push alerts (ntfy.sh) also require NTFY_TOPIC to be set — subscribers join that topic "
-    "on the ntfy app. Absent vars → demo mode (toast only)."
-)
+with st.expander("⚙️ Alert Channels Setup & Credentials Guide", expanded=False):
+    st.markdown(f"""
+    ### 1. 📲 Push Notifications (ntfy.sh — Free & Instant)
+    - **No accounts or API keys required.**
+    - Current topic: **[`{ntfy_topic}`]({ntfy_url})**
+    - **How to test now:** Open [`{ntfy_url}`]({ntfy_url}) in a new browser tab and click **"Subscribe" / "Allow Notifications"**. Then click the **Send Push Notification** button above to hear the siren/alert instantly!
+    - On mobile, install the free **ntfy** app (Android/iOS) and subscribe to `{ntfy_topic}`.
+
+    ---
+    ### 2. 📧 Email Notifications (Gmail SMTP)
+    Email runs in demo mode until SMTP credentials are provided. Create a `.env` file in the project folder with:
+    ```ini
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=587
+    SMTP_USER=your_email@gmail.com
+    SMTP_PASS=xxxx xxxx xxxx xxxx
+    ALERT_EMAIL=recipient_email@gmail.com
+    ```
+    *(Note: Gmail requires a 16-character **App Password** created at [Google Account > App Passwords](https://myaccount.google.com/apppasswords), not your regular password).*
+
+    ---
+    ### 3. 📱 Telegram Bot Alerts
+    Telegram runs in demo mode until bot credentials are provided:
+    1. Create a bot with **@BotFather** on Telegram to receive your bot token.
+    2. Message your bot, then get your chat ID using **@userinfobot**.
+    3. Add them to your `.env` file:
+    ```ini
+    TELEGRAM_BOT_TOKEN=123456789:ABCdefGHI...
+    TELEGRAM_CHAT_ID=123456789
+    ```
+    """)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
